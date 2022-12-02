@@ -12,11 +12,13 @@ pub(crate) fn go() {
             .tuples::<(_, _)>()
             .map_into::<Round>()
     });
-    let player_score = rounds.fold(0u64, |score, Round(o, p)| score + u64::from(p.move_score()) + u64::from(p.round_score(&o)));
+    let player_score = rounds.fold(0u64, |score, Round(o, p)| {
+        score + u64::from(p.move_score(&o)) + u64::from(p.round_score())
+    });
     println!("Player score: {}", player_score)
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 enum Move {
     Rock,
     Paper,
@@ -46,15 +48,15 @@ impl PartialOrd for Move {
 }
 
 #[derive(Debug)]
-struct PlayerMove(Move);
+struct PlayerMove(Ordering);
 
 impl From<&str> for PlayerMove {
     fn from(s: &str) -> Self {
-        use Move::{Paper, Rock, Scissors};
+        use Ordering::{Equal, Greater, Less};
         match s {
-            "X" => PlayerMove(Rock),
-            "Y" => PlayerMove(Paper),
-            "Z" => PlayerMove(Scissors),
+            "X" => PlayerMove(Less),
+            "Y" => PlayerMove(Equal),
+            "Z" => PlayerMove(Greater),
             _ => panic!("Invalid player move: {}", s),
         }
     }
@@ -85,18 +87,32 @@ impl From<(&str, &str)> for Round {
 }
 
 impl PlayerMove {
-    fn move_score(&self) -> u8 {
+    fn move_score(&self, opponent_move: &OpponentMove) -> u8 {
         use Move::{Paper, Rock, Scissors};
-        match self.0 {
+        use Ordering::{Equal, Greater, Less};
+        let player_move = match self.0 {
+            Greater => match opponent_move.0 {
+                Rock => Paper,
+                Paper => Scissors,
+                Scissors => Rock,
+            },
+            Equal => opponent_move.0.clone(),
+            Less => match opponent_move.0 {
+                Rock => Scissors,
+                Paper => Rock,
+                Scissors => Paper,
+            },
+        };
+        match player_move {
             Rock => 1,
             Paper => 2,
             Scissors => 3,
         }
     }
 
-    fn round_score(&self, opponent_move: &OpponentMove) -> u8 {
+    fn round_score(&self) -> u8 {
         use Ordering::{Equal, Greater, Less};
-        match self.0.cmp(&opponent_move.0) {
+        match self.0 {
             Greater => 6,
             Equal => 3,
             Less => 0,
